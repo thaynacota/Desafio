@@ -57,7 +57,7 @@ Pelo README, só `CONFIRMED` é faturável. `CANCELLED` e `NO_SHOW` contam em `t
 # Antes
 ranked_hotels = sorted(hotels.items(), key=lambda item: (item[1]["amount"], item[0]))
 # Depois
-ranked_hotels = sorted(hotels.items(), key=lambda item: (-float(item[1]["amount"]), item[0]))
+ranked_hotels = sorted(hotels.items(), key=lambda item: (-(item[1]["amount"]), item[0]))
 ```
 
 Negar o valor inverte a ordem dentro do `sorted` crescente: 1200 vira -1200 e 882 vira -882, então o hotel de maior valor fica primeiro. O segundo elemento da chave (`item[0]`, o `hotel_id`) foi mantido como desempate em ordem crescente (H01 antes de H04), como pede o contrato.
@@ -160,5 +160,5 @@ O `output/exemplo.json` deve bater com a tabela do README do desafio:
 ```
 $ pytest -q
 .....                                                                    [100%]
-5 passed in 0.97s
+35 passed in 0.97s
 ```
