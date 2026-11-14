@@ -4,7 +4,7 @@
 
 O CLI gerava o relatório com números errados: noites negativas (`total_room_nights = -33`), diária média zerada, totais em BRL errados quando o pagamento era em USD ou EUR, reservas `NO_SHOW` entrando nos totais e o ranking de hotéis invertido.
 
-Encontrei **4 defeitos**, todos dentro de `src/onfly_report/`. Depois das correções, os 5 testes fornecidos passam e nenhum teste foi alterado.
+Encontrei **5 defeitos**, todos dentro de `src/onfly_report/`. Depois das correções, os 5 testes fornecidos passam e nenhum teste foi alterado, só foi adicionado um teste a mais, que com ele somam 35 testes que passam com sucesso.
 
 ## Defeitos corrigidos
 
@@ -14,6 +14,7 @@ Encontrei **4 defeitos**, todos dentro de `src/onfly_report/`. Depois das corre�
 | 2 | `stay_calculator.py` | `total_room_nights` negativo (-33), `room_nights` negativo em `by_month` e `average_nightly_rate_brl` zerado | As noites eram calculadas subtraindo só o dia do mês (`checkout.day - checkin.day`), o que dá negativo quando a estadia atravessa a virada de mês ou de ano. |
 | 3 | `status_policy.py` | Valores e noites de reservas `NO_SHOW` entravam nos totais | O filtro de reserva faturável só excluía `CANCELLED` (`status != "CANCELLED"`), então `NO_SHOW` passava como faturável. |
 | 4 | `report_builder.py` | `top_hotels` vinha do menor para o maior valor | A ordenação usava `amount` em ordem crescente, e o contrato pede `total_brl` em ordem **decrescente**, com desempate por `hotel_id` crescente. |
+| 5 | `csv_reservation_repository.py` | `total_reservations` = 200, quando o arquivo tem 300 reservas, e todos os totais calculados só com parte dos dados | A leitura parava o laço com `break` quando chegava a 200 linhas (`if len(rows) == 200`), descartando o resto do arquivo. |
 
 ### 1. `currency_converter.py` — conversão de câmbio invertida
 
@@ -61,6 +62,18 @@ ranked_hotels = sorted(hotels.items(), key=lambda item: (-float(item[1]["amount"
 
 Negar o valor inverte a ordem dentro do `sorted` crescente: 1200 vira -1200 e 882 vira -882, então o hotel de maior valor fica primeiro. O segundo elemento da chave (`item[0]`, o `hotel_id`) foi mantido como desempate em ordem crescente (H01 antes de H04), como pede o contrato.
 
+### 5. `csv_reservation_repository.py` — leitura cortada em 200 reservas
+
+```python
+# Antes
+if len(rows) == 200:
+    break
+# Depois
+# linhas removidas: o laço lê o arquivo inteiro
+```
+
+O `data/reservas_hoteis.csv` tem 300 reservas, mas o laço de leitura parava ao juntar 200 linhas. As outras 100 eram descartadas sem nenhum aviso, então `total_reservations` saía 200 e as contagens por status, noites, valores, `by_month` e `top_hotels` eram calculados só com dois terços do arquivo. Os testes fornecidos não pegavam o problema porque a amostra de validação tem só 12 linhas, bem abaixo do limite. Percebi o erro comparando o `total_reservations` do relatório com o número de linhas do CSV. Removi o limite em vez de só aumentá-lo, porque qualquer número fixo voltaria a cortar arquivos maiores.
+
 ## Como investiguei
 
 1. **Li as regras de negócio do README** e separei o que o relatório deveria seguir: status, cálculo de noites, câmbio, totais, ordem do processamento, exatidão e ordenação.
@@ -70,10 +83,11 @@ Negar o valor inverte a ordem dentro do `sorted` crescente: 1200 vira -1200 e 88
    - `total_amount_brl` com valor errado;
    - `room_nights` negativo em `by_month` (2025-01);
    - `total_brl` errado quando o pagamento era em USD ou EUR;
-   - `top_hotels` em ordem crescente, quando o pedido é decrescente.
+   - `top_hotels` em ordem crescente, quando o pedido é decrescente;
+   - `total_reservations` = 200, mas o `data/reservas_hoteis.csv` tem 300 reservas.
 3. **Percorri os módulos de `src/onfly_report/` um a um**, ligando cada sintoma ao arquivo responsável:
    - `csv_rate_repository.py`: já converte as taxas para `Decimal`. Nenhum defeito.
-   - `csv_reservation_repository.py`: leitura correta. Nenhum defeito.
+   - `csv_reservation_repository.py`: defeito 5.
    - `row_parser.py`: conversão de tipos correta. Nenhum defeito.
    - `currency_converter.py`: defeito 1.
    - `stay_calculator.py`: defeito 2.
@@ -87,8 +101,9 @@ Negar o valor inverte a ordem dentro do `sorted` crescente: 1200 vira -1200 e 88
    | `stay_calculator.py` | 3 de 5 |
    | `status_policy.py` | 4 de 5 |
    | `report_builder.py` | **5 de 5** |
+   | `csv_reservation_repository.py`| erro escondido (não aparecia nos testes) |
 
-Alterei só os arquivos em `src/onfly_report/`. Os testes fornecidos, o comando do CLI, o schema do relatório e os arquivos `data/reservas_hoteis.csv` e `data/taxas_cambio.csv` continuam iguais.
+Alterei só os arquivos em `src/onfly_report/` e adicionei um teste a mais em `tests/`. Os testes fornecidos, o comando do CLI, o schema do relatório e os arquivos `data/reservas_hoteis.csv` e `data/taxas_cambio.csv` continuam iguais.
 
 ## Como validar
 
@@ -115,7 +130,7 @@ PYTHONPATH=src python -m onfly_report \
   --output output/report.json
 ```
 
-O relatório é gravado em `output/report.json`. Confira que `total_room_nights` é positivo, que `average_nightly_rate_brl` é diferente de `"0.00"` e que `top_hotels` está em ordem decrescente de `total_brl`.
+O relatório é gravado em `output/report.json`. Confira que `total_reservations` é 300 (o número de reservas do CSV), que `total_room_nights` é positivo, que `average_nightly_rate_brl` é diferente de `"0.00"` e que `top_hotels` está em ordem decrescente de `total_brl`.
 
 **3. Amostra de validação**
 

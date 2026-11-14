@@ -62,16 +62,16 @@ class ReportBuilder:
             room_nights = calculate_room_nights(row.checkin, row.checkout, row.rooms)
             amount_brl = convert_to_brl(row.amount, row.currency, rates)
 
-            total_nights += room_nights # aqui esta com erro, esta dando negativo
-            total_amount += amount_brl # acho que aqui arrumou por causa da conversão
+            total_nights += room_nights 
+            total_amount += amount_brl 
 
             month_key = row.checkin.strftime("%Y-%m")
             monthly[month_key]["reservations"] += 1
-            monthly[month_key]["room_nights"] += room_nights # aqui esta o erro 
+            monthly[month_key]["room_nights"] += room_nights 
             monthly[month_key]["amount"] += amount_brl
 
             hotels[row.hotel_id]["hotel_name"] = row.hotel_name
-            hotels[row.hotel_id]["room_nights"] += room_nights # aqui esta certinho
+            hotels[row.hotel_id]["room_nights"] += room_nights 
             hotels[row.hotel_id]["amount"] += amount_brl
 
         average_nightly_rate = (
@@ -88,7 +88,7 @@ class ReportBuilder:
             for month, data in sorted(monthly.items())
         ]
 
-        ranked_hotels = sorted(hotels.items(), key=lambda item: (-float(item[1]["amount"]), item[0]))
+        ranked_hotels = sorted(hotels.items(), key=lambda item: (-(item[1]["amount"]), item[0]))
         top_hotels = [
             {
                 "hotel_id": hotel_id,
